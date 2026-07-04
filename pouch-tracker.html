@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#F7FAF9" />
+<title>Pouch Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap');
+:root {
+  --ink:#1A2B33; --paper:#F7FAF9; --teal:#14907A; --teal-soft:#8FCABB;
+  --frost:#DCE9E6; --muted:#6B8079; --amber:#E8A13D; --amber-ink:#8A5A10;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:system-ui,-apple-system,sans-serif;
+  display:flex; justify-content:center; min-height:100vh;
+}
+.wrap { width:100%; max-width:460px; padding:24px 20px 48px; }
+header { display:flex; justify-content:space-between; align-items:baseline; }
+h1 { font:700 22px 'Space Grotesk',system-ui; margin:0; letter-spacing:-0.01em; }
+.date { font-size:13px; color:var(--muted); margin-top:2px; }
+h2 { font:600 15px 'Space Grotesk',system-ui; margin:0; }
+.ghost-btn {
+  background:#fff; border:1.5px solid var(--frost); border-radius:10px;
+  padding:8px 14px; font:500 13px system-ui; color:var(--ink); cursor:pointer;
+}
+.ghost-btn:hover { border-color:var(--teal); }
+.ghost-btn:focus-visible { outline:2px solid var(--teal); }
+.ghost-btn:disabled { opacity:0.5; cursor:default; }
+.card { background:#fff; border:1.5px solid var(--frost); border-radius:14px; padding:14px; }
+.panel { background:#fff; border:1.5px solid var(--frost); border-radius:14px; padding:16px; margin:12px 0; }
+.panel label { font-size:13px; font-weight:600; display:block; margin-bottom:8px; }
+.panel input[type=number] {
+  width:90px; padding:8px 10px; border-radius:10px; border:1.5px solid var(--frost);
+  font:600 15px system-ui; color:var(--ink); background:var(--paper);
+}
+.panel p { font-size:12px; color:var(--muted); margin:10px 0 0; }
+.hint { font-size:12px; color:var(--muted); }
+#tinBtn {
+  position:relative; width:300px; height:300px; border-radius:50%; border:none;
+  background:transparent; cursor:pointer; padding:0; display:block; margin:12px auto 4px;
+  -webkit-tap-highlight-color:transparent;
+}
+#tinBtn svg { display:block; transition:transform 0.12s ease; }
+#tinBtn:active svg { transform:scale(0.98); }
+#tinBtn:focus-visible { outline:3px solid var(--teal); }
+.underline-row { display:flex; justify-content:center; align-items:center; gap:14px; margin-bottom:20px; }
+.stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:24px; }
+.stat-label { font-size:10px; color:var(--muted); letter-spacing:0.06em; font-weight:600; }
+.stat-val { font:600 22px 'Space Grotesk',system-ui; font-variant-numeric:tabular-nums; }
+.stat-unit { font-size:12px; color:var(--muted); font-weight:500; }
+.hist { background:#fff; border:1.5px solid var(--frost); border-radius:16px; padding:18px; }
+.hist-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.range-btn { background:none; border:none; padding:6px 10px; border-radius:8px; font:600 12px system-ui; color:var(--muted); cursor:pointer; }
+.range-btn.active { background:#E3F1ED; color:var(--teal); }
+#bars { display:flex; align-items:flex-end; height:120px; position:relative; }
+#barLabels { display:flex; margin-top:6px; }
+.bar-col { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:4px; height:100%; }
+.bar-num { font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.bar { width:100%; max-width:26px; border-radius:5px; transition:height 0.3s ease; }
+.bar-lab { flex:1; text-align:center; font-size:10px; color:#9AB0A9; }
+.bar-lab.today { color:var(--teal); font-weight:700; }
+.goal-line { position:absolute; left:0; right:0; border-top:1.5px dashed var(--amber); opacity:0.7; }
+.hist-foot { display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:14px; }
+#exportMsg { font-size:12px; color:var(--teal); }
+#chips { display:flex; flex-wrap:wrap; gap:6px; }
+.chip {
+  background:#fff; border:1.5px solid var(--frost); border-radius:999px;
+  padding:5px 11px; font-size:12px; font-variant-numeric:tabular-nums;
+}
+#empty { text-align:center; color:var(--muted); font-size:13px; margin-top:24px; }
+.backup-row { display:flex; gap:8px; margin-top:20px; justify-content:center; flex-wrap:wrap; }
+#toast {
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:#fff; font-size:13px; padding:10px 16px;
+  border-radius:10px; opacity:0; pointer-events:none; transition:opacity 0.25s;
+}
+#toast.show { opacity:1; }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Pouch Log</h1>
+      <div class="date" id="dateLine"></div>
+    </div>
+    <button class="ghost-btn" id="goalToggle">Goal</button>
+  </header>
+
+  <div class="panel" id="goalPanel" hidden>
+    <label for="goalInput">Daily goal (leave blank for none)</label>
+    <input type="number" id="goalInput" min="1" max="40" placeholder="e.g. 8" />
+    <p>The amber notch on the ring marks your goal. Bars turn amber on days you go over.</p>
+  </div>
+
+  <button id="tinBtn" aria-label="Log a pouch"></button>
+
+  <div class="underline-row">
+    <span class="hint">Last: <strong id="lastLine" style="color:var(--ink)">—</strong></span>
+    <button class="ghost-btn" id="undoBtn" hidden>Undo last</button>
+  </div>
+
+  <div class="stats">
+    <div class="card">
+      <div class="stat-label">TODAY'S NICOTINE</div>
+      <div class="stat-val"><span id="mgToday">0</span><span class="stat-unit"> mg</span></div>
+    </div>
+    <div class="card">
+      <div class="stat-label">7-DAY AVG</div>
+      <div class="stat-val"><span id="avg7">0.0</span><span class="stat-unit"> /day</span></div>
+    </div>
+    <div class="card">
+      <div class="stat-label">VS PRIOR WEEK</div>
+      <div class="stat-val" id="trend">—</div>
+    </div>
+  </div>
+
+  <div class="hist">
+    <div class="hist-head">
+      <h2>History</h2>
+      <div>
+        <button class="range-btn active" data-r="7">7d</button>
+        <button class="range-btn" data-r="14">14d</button>
+        <button class="range-btn" data-r="30">30d</button>
+      </div>
+    </div>
+    <div id="bars"></div>
+    <div id="barLabels"></div>
+    <div class="hist-foot">
+      <span id="exportMsg"></span>
+      <button class="ghost-btn" id="exportBtn">Export CSV</button>
+    </div>
+  </div>
+
+  <div id="todaySection" style="margin-top:20px" hidden>
+    <h2 style="margin-bottom:10px">Today's log</h2>
+    <div id="chips"></div>
+  </div>
+
+  <p id="empty">Tap the tin above to log your first pouch. Everything saves on this device automatically.</p>
+
+  <div class="backup-row">
+    <button class="ghost-btn" id="backupBtn">Backup data</button>
+    <button class="ghost-btn" id="restoreBtn">Restore backup</button>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+const KEY = "pouch-tracker-data";
+const MG = 3;
+let state = { logs: [], goal: null };
+let range = 7;
+
+// ---- persistence (localStorage) ----
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      state.logs = Array.isArray(p.logs) ? p.logs : [];
+      state.goal = p.goal ?? null;
+    }
+  } catch (e) { /* fresh start */ }
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { toast("Couldn't save — storage may be blocked in this browser mode."); }
+}
+
+// ---- helpers ----
+const dayKey = (d) => {
+  const t = new Date(d);
+  return t.getFullYear() + "-" + String(t.getMonth()+1).padStart(2,"0") + "-" + String(t.getDate()).padStart(2,"0");
+};
+const todayKey = () => dayKey(new Date());
+function byDay() {
+  const m = {};
+  for (const t of state.logs) { const k = dayKey(t); m[k] = (m[k]||0)+1; }
+  return m;
+}
+function fmtDur(ms) {
+  if (ms == null) return "—";
+  const m = Math.floor(ms/60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  const h = Math.floor(m/60);
+  if (h < 24) return h + "h " + (m%60) + "m ago";
+  const d = Math.floor(h/24);
+  return d + "d " + (h%24) + "h ago";
+}
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), 3000);
+}
+
+// ---- tin dial ----
+function renderTin() {
+  const map = byDay();
+  const count = map[todayKey()] || 0;
+  const goal = state.goal;
+  const slots = Math.max(goal || 10, count, 10);
+  const size = 300, c = size/2, R = 118;
+  const over = goal && count > goal;
+  let dots = "";
+  for (let i = 0; i < slots; i++) {
+    const a = (i/slots)*2*Math.PI - Math.PI/2;
+    const x = c + R*Math.cos(a), y = c + R*Math.sin(a);
+    const filled = i < count;
+    const goalMark = goal && i === goal-1;
+    const fill = filled ? (goal && i >= goal ? "#E8A13D" : "#14907A") : "#FFFFFF";
+    const stroke = filled ? "none" : (goalMark ? "#E8A13D" : "#C9DBD6");
+    const sw = (goalMark && !filled) ? 2.5 : 1.5;
+    dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${filled?9:7}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+  }
+  document.getElementById("tinBtn").innerHTML = `
+  <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${c}" cy="${c}" r="148" fill="#FFFFFF" stroke="#DCE9E6" stroke-width="1.5"/>
+    <circle cx="${c}" cy="${c}" r="96" fill="#F2F8F6"/>
+    ${dots}
+    <text x="${c}" y="${c-8}" text-anchor="middle" style="font:600 64px 'Space Grotesk',system-ui;fill:${over?'#B97A1E':'#1A2B33'};font-variant-numeric:tabular-nums">${count}</text>
+    <text x="${c}" y="${c+24}" text-anchor="middle" style="font:500 13px system-ui;fill:#6B8079;letter-spacing:0.08em">${goal ? "OF "+goal+" TODAY" : "TODAY"}</text>
+    <text x="${c}" y="${c+52}" text-anchor="middle" style="font:500 12px system-ui;fill:#14907A">tap to log</text>
+  </svg>`;
+}
+
+// ---- history ----
+function renderHistory() {
+  const map = byDay();
+  const goal = state.goal;
+  const data = [];
+  for (let i = range-1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const k = dayKey(d);
+    data.push({
+      k, count: map[k]||0, isToday: k===todayKey(),
+      label: d.toLocaleDateString([], {weekday:"narrow"}), num: d.getDate()
+    });
+  }
+  const max = Math.max(...data.map(d=>d.count), goal||0, 4);
+  const H = 120;
+  const gap = range > 14 ? 3 : 8;
+  const bars = document.getElementById("bars");
+  bars.style.gap = gap + "px";
+  let html = "";
+  if (goal) {
+    html += `<div class="goal-line" style="bottom:${(goal/max)*(H-16)}px" aria-hidden="true"></div>`;
+  }
+  for (const d of data) {
+    const h = Math.max((d.count/max)*(H-32), d.count>0?6:2);
+    const bg = d.count===0 ? "#E5EFEC" : (goal && d.count>goal) ? "#E8A13D" : d.isToday ? "#14907A" : "#8FCABB";
+    html += `<div class="bar-col" title="${d.k}: ${d.count}">
+      <span class="bar-num">${d.count>0?d.count:""}</span>
+      <div class="bar" style="height:${h}px;background:${bg}"></div>
+    </div>`;
+  }
+  bars.innerHTML = html;
+  const labs = document.getElementById("barLabels");
+  labs.style.gap = gap + "px";
+  labs.innerHTML = data.map(d =>
+    `<div class="bar-lab${d.isToday?" today":""}">${range>14 ? ((d.num%5===0||d.isToday)?d.num:"") : d.label}</div>`
+  ).join("");
+}
+
+// ---- stats + chips ----
+function renderStats() {
+  const map = byDay();
+  const today = map[todayKey()] || 0;
+  document.getElementById("mgToday").textContent = today * MG;
+  const avgOver = (n, off=0) => {
+    let s = 0;
+    for (let i = off; i < n+off; i++) {
+      const d = new Date(); d.setDate(d.getDate()-i);
+      s += map[dayKey(d)] || 0;
+    }
+    return s/n;
+  };
+  const a7 = avgOver(7), p7 = avgOver(7,7);
+  document.getElementById("avg7").textContent = a7.toFixed(1);
+  const tr = document.getElementById("trend");
+  if (p7 > 0) {
+    const pct = ((a7-p7)/p7)*100;
+    tr.textContent = (pct>0?"+":"") + pct.toFixed(0) + "%";
+    tr.style.color = pct <= 0 ? "#14907A" : "#B97A1E";
+  } else { tr.textContent = "—"; tr.style.color = "#6B8079"; }
+
+  const last = state.logs.length ? state.logs[state.logs.length-1] : null;
+  document.getElementById("lastLine").textContent = last ? fmtDur(Date.now()-new Date(last).getTime()) : "—";
+
+  const todays = state.logs.filter(t => dayKey(t)===todayKey());
+  document.getElementById("undoBtn").hidden = todays.length === 0;
+  document.getElementById("todaySection").hidden = todays.length === 0;
+  document.getElementById("chips").innerHTML = todays.map(t =>
+    `<span class="chip">${new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})}</span>`
+  ).join("");
+  document.getElementById("empty").hidden = state.logs.length > 0;
+}
+
+function renderAll() { renderTin(); renderHistory(); renderStats(); }
+
+// ---- actions ----
+document.getElementById("tinBtn").addEventListener("click", () => {
+  state.logs.push(new Date().toISOString());
+  save(); renderAll();
+});
+document.getElementById("undoBtn").addEventListener("click", () => {
+  state.logs.pop(); save(); renderAll();
+});
+document.getElementById("goalToggle").addEventListener("click", (e) => {
+  const p = document.getElementById("goalPanel");
+  p.hidden = !p.hidden;
+  e.target.textContent = p.hidden ? "Goal" : "Done";
+});
+document.getElementById("goalInput").addEventListener("input", (e) => {
+  const v = e.target.value;
+  state.goal = v === "" ? null : Math.max(1, Math.min(40, Number(v)));
+  save(); renderAll();
+});
+document.querySelectorAll(".range-btn").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".range-btn").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  range = Number(b.dataset.r);
+  renderHistory();
+}));
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  if (!state.logs.length) { toast("Nothing to export yet."); return; }
+  const rows = [["date","time","mg"]];
+  for (const t of state.logs) {
+    const d = new Date(t);
+    rows.push([dayKey(t), d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",hour12:false}), MG]);
+  }
+  rows.push([]); rows.push(["date","pouches","total_mg"]);
+  const m = byDay();
+  for (const k of Object.keys(m).sort()) rows.push([k, m[k], m[k]*MG]);
+  const csv = rows.map(r=>r.join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "pouch-log-" + todayKey() + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  const msg = document.getElementById("exportMsg");
+  msg.textContent = "Downloaded";
+  setTimeout(() => msg.textContent = "", 4000);
+});
+
+// ---- backup / restore (for moving between devices or from the Claude version) ----
+document.getElementById("backupBtn").addEventListener("click", async () => {
+  const json = JSON.stringify(state);
+  try {
+    await navigator.clipboard.writeText(json);
+    toast("Backup copied to clipboard — paste it somewhere safe.");
+  } catch {
+    prompt("Copy this backup text:", json);
+  }
+});
+document.getElementById("restoreBtn").addEventListener("click", () => {
+  const input = prompt("Paste your backup text:");
+  if (!input) return;
+  try {
+    const p = JSON.parse(input);
+    if (!Array.isArray(p.logs)) throw new Error("bad format");
+    state.logs = p.logs;
+    state.goal = p.goal ?? null;
+    save(); renderAll();
+    toast("Backup restored — " + state.logs.length + " pouches loaded.");
+  } catch {
+    toast("That didn't look like a valid backup.");
+  }
+});
+
+// ---- init ----
+load();
+document.getElementById("dateLine").textContent =
+  new Date().toLocaleDateString([], {weekday:"long", month:"long", day:"numeric"});
+document.getElementById("goalInput").value = state.goal ?? "";
+renderAll();
+setInterval(renderStats, 60000);
+</script>
+</body>
+</html>
